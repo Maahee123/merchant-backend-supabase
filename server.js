@@ -974,7 +974,4 @@ app.use((req, res) => {
 
 /* ---------------- SERVER ---------------- */
 
-app.listen(PORT, '0.0.0.0', () => {
-  app.listen(PORT, '0.0.0.0', () => {
-  });
-});
+app.listen(PORT, '0.0.0.0');
