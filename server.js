@@ -339,7 +339,8 @@ app.post('/upload/image', upload.single('image'), (req, res) => {
     return res.status(400).json({ error: 'Image is required' });
   }
 
-  const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+  const host = req.get('host');
+const imageUrl = `https://${host}/uploads/${req.file.filename}`;
 
   return res.json({ imageUrl });
 });
