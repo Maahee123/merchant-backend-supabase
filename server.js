@@ -62,6 +62,16 @@ function getIndiaTime() {
   });
 }
 
+function getIndiaDateTime() {
+  const now = new Date();
+
+  return new Date(
+    now.toLocaleString("en-US", {
+      timeZone: "Asia/Kolkata",
+    })
+  ).toISOString();
+}
+
 function normalizeNumber(value) {
   return String(value || '')
     .replace('whatsapp:', '')
@@ -140,11 +150,18 @@ function extractQuantityNumber(quantity) {
 }
 
 function buildStats(entries) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", {
+  timeZone: "Asia/Kolkata",
+});
 
   const todayEntries = entries.filter((entry) => {
-    const created = entry.created_at || entry.createdAt || '';
-    return String(created).slice(0, 10) === today;
+    const created = new Date(entry.created_at || entry.createdAt);
+
+const createdDate = created.toLocaleDateString("en-CA", {
+  timeZone: "Asia/Kolkata",
+});
+
+return createdDate === today;
   });
 
   const productSummary = {};
@@ -372,7 +389,7 @@ app.post('/products', (req, res) => {
     title,
     image: image || '',
     product_number: resolved.value,
-    created_at: new Date().toISOString(),
+    created_at: getIndiaDateTime(),
   };
 
   products.unshift(product);
@@ -487,8 +504,8 @@ app.post('/api/entries', (req, res) => {
     quantity: req.body.quantity || '',
     time: req.body.time || getIndiaTime(),
     raw_message: req.body.raw_message || '',
-    createdAt: new Date().toISOString(),
-    created_at: new Date().toISOString(),
+    createdAt: getIndiaDateTime(),
+    created_at: getIndiaDateTime(),
   };
 
   entries.unshift(entry);
@@ -617,8 +634,8 @@ app.post('/webhook', (req, res) => {
     time: parsed.time || receivedTime,
     received_time: receivedTime,
     raw_message: message,
-    createdAt: new Date().toISOString(),
-    created_at: new Date().toISOString(),
+    createdAt: getIndiaDateTime(),
+    created_at: getIndiaDateTime(),
   };
 
   entries.unshift(entry);
@@ -652,7 +669,7 @@ app.post('/numbers', (req, res) => {
     label,
     phone_number: normalizeNumber(phone_number),
     status: 'active',
-    created_at: new Date().toISOString(),
+    created_at: getIndiaDateTime(),
   };
 
   numbers.unshift(item);
@@ -707,7 +724,7 @@ app.post('/tracked-merchants', (req, res) => {
     tracking_start_time: tracking_start_time || '00:00',
     tracking_end_time: tracking_end_time || '23:59',
     status: 'active',
-    created_at: new Date().toISOString(),
+    created_at: getIndiaDateTime(),
   };
 
   merchants.unshift(merchant);
@@ -797,7 +814,11 @@ app.get('/reports/product/:number/daily', (req, res) => {
   const dailyMap = {};
 
   filtered.forEach((entry) => {
-    const date = String(entry.created_at || entry.createdAt || '').slice(0, 10);
+    const date = new Date(
+  entry.created_at || entry.createdAt
+).toLocaleDateString("en-CA", {
+  timeZone: "Asia/Kolkata",
+});
 
     if (!dailyMap[date]) {
       dailyMap[date] = {
@@ -943,9 +964,14 @@ app.get('/export/excel/date-range', (req, res) => {
   const entries = readJson(files.entries, []);
 
   const filtered = entries.filter((entry) => {
-    const entryDate = new Date(entry.created_at || entry.createdAt || '');
-    return entryDate >= fromDate && entryDate <= toDate;
-  });
+  const indiaDate = new Date(
+    new Date(entry.created_at || entry.createdAt).toLocaleString("en-US", {
+      timeZone: "Asia/Kolkata",
+    })
+  );
+
+  return indiaDate >= fromDate && indiaDate <= toDate;
+});
 
   const buffer = createExcelBuffer(filtered);
 
