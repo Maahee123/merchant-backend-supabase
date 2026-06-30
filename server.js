@@ -12,7 +12,6 @@ const cron = require('node-cron');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-const LIVE_BASE_URL = 'https://merchant-backend-production-591b.up.railway.app';
 
 app.use(cors());
 app.use(express.json());
@@ -52,14 +51,6 @@ function readJson(file, fallback = []) {
 
 function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-function fixImageUrl(url) {
-  if (!url) return '';
-
-  return String(url)
-    .replace('http://192.168.31.164:3000', LIVE_BASE_URL)
-    .replace('http://merchant-backend-production-591b.up.railway.app', LIVE_BASE_URL);
 }
 
 function getIndiaTime() {
@@ -190,7 +181,7 @@ function getNextProductNumber(products) {
   return null;
 }
 
-function resolveProductNumber(products, inputNumber, currentProductId = null) {
+function resolveProductNumber(products, inputNumber) {
   if (inputNumber !== undefined && inputNumber !== null && inputNumber !== '') {
     const num = Number(inputNumber);
 
@@ -198,9 +189,7 @@ function resolveProductNumber(products, inputNumber, currentProductId = null) {
       return { error: 'Product number must be between 0 and 99' };
     }
 
-    const exists = products.some(
-      (p) => String(p.id) !== String(currentProductId) && Number(p.product_number) === num
-    );
+    const exists = products.some((p) => Number(p.product_number) === num);
 
     if (exists) {
       return { error: `Product number ${num} already exists` };
@@ -350,7 +339,7 @@ app.post('/upload/image', upload.single('image'), (req, res) => {
     return res.status(400).json({ error: 'Image is required' });
   }
 
-  const imageUrl = `${LIVE_BASE_URL}/uploads/${req.file.filename}`;
+  const imageUrl = `https://merchant-backend-production-591b.up.railway.app/uploads/${req.file.filename}`;
 
   return res.json({ imageUrl });
 });
@@ -358,12 +347,7 @@ app.post('/upload/image', upload.single('image'), (req, res) => {
 /* ---------------- PRODUCTS ---------------- */
 
 app.get('/products', (req, res) => {
-  const products = readJson(files.products, []).map((product) => ({
-    ...product,
-    image: fixImageUrl(product.image),
-  }));
-
-  res.json(products);
+  res.json(readJson(files.products, []));
 });
 
 app.post('/products', (req, res) => {
@@ -386,7 +370,7 @@ app.post('/products', (req, res) => {
     id: String(Date.now()),
     name,
     title,
-    image: fixImageUrl(image),
+    image: image || '',
     product_number: resolved.value,
     created_at: new Date().toISOString(),
   };
@@ -413,19 +397,22 @@ app.put('/products/:id', (req, res) => {
     req.body.product_number !== null &&
     req.body.product_number !== ''
   ) {
-    const resolved = resolveProductNumber(products, req.body.product_number, id);
+    const num = Number(req.body.product_number);
 
-    if (resolved.error) {
-      return res.status(400).json({ error: resolved.error });
+    if (Number.isNaN(num) || num < 0 || num > 99) {
+      return res.status(400).json({ error: 'Product number must be between 0 and 99' });
     }
 
-    nextProductNumber = resolved.value;
-  }
+    const duplicate = products.some(
+      (item) => String(item.id) !== id && Number(item.product_number) === num
+    );
 
-  const nextImage =
-    req.body.image !== undefined && req.body.image !== null
-      ? fixImageUrl(req.body.image)
-      : fixImageUrl(existing.image);
+    if (duplicate) {
+      return res.status(400).json({ error: `Product number ${num} already exists` });
+    }
+
+    nextProductNumber = num;
+  }
 
   products = products.map((item) =>
     String(item.id) === id
@@ -433,7 +420,7 @@ app.put('/products/:id', (req, res) => {
           ...item,
           name: req.body.name ?? item.name,
           title: req.body.title ?? item.title,
-          image: nextImage,
+          image: req.body.image ?? item.image,
           product_number: nextProductNumber,
         }
       : item
@@ -464,10 +451,7 @@ app.get('/products/number/:number', (req, res) => {
     return res.status(404).json({ error: 'Product not found' });
   }
 
-  return res.json({
-    ...product,
-    image: fixImageUrl(product.image),
-  });
+  return res.json(product);
 });
 
 /* ---------------- ENTRIES ---------------- */
