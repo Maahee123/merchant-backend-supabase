@@ -325,6 +325,9 @@ app.get('/routes-check', (req, res) => {
       '/tracked-merchants/:id/status',
       '/tracked-merchants/:id/schedule',
       '/tracked-merchants/:id',
+      '/reports/product/:number/daily',
+      '/entries/merchant/:merchantName',
+      '/export/excel/date-range',
       '/webhook',
       '/upload/image',
       '/export/excel',
@@ -372,6 +375,76 @@ app.get('/stats', async (req, res) => {
   } catch (error) {
     logError('Stats fetch exception', error);
     return res.status(500).json({ error: 'Failed to load stats', details: error.message });
+  }
+});
+
+app.get('/reports/product/:number/daily', async (req, res) => {
+  try {
+    const productNumber = req.params.number;
+    const today = getTodayDateString();
+
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .eq('product', productNumber)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({
+        error: error.message,
+      });
+    }
+
+    const todayEntries = (data || []).filter(entry =>
+      String(entry.created_at).slice(0,10) === today
+    );
+
+    const totalQuantity = todayEntries.reduce((sum, item) => {
+      return sum + extractQuantityNumber(item.quantity);
+    }, 0);
+
+    res.json({
+      productNumber,
+      totalEntries: todayEntries.length,
+      totalQuantity,
+      dailySummary: [
+        {
+          date: today,
+          entries: todayEntries.length,
+          quantity: totalQuantity,
+        }
+      ],
+      entries: todayEntries
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+    });
+  }
+});
+
+app.get('/entries/merchant/:merchantName', async (req, res) => {
+  try {
+    const merchantName = req.params.merchantName;
+
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .ilike('merchant_name', merchantName)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({
+        error: error.message,
+      });
+    }
+
+    return res.json(data || []);
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
   }
 });
 
@@ -1178,6 +1251,39 @@ app.get('/export/excel/total', async (req, res) => {
     return res.status(500).json({
       error: 'Failed to export total data',
       details: error.message,
+    });
+  }
+});
+
+app.get('/export/excel/date-range', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+
+    if (!from || !to) {
+      return res.status(400).json({
+        error: 'from and to dates are required'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .gte('created_at', `${from}T00:00:00`)
+      .lte('created_at', `${to}T23:59:59`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return sendEntriesWorkbook(
+      res,
+      data || [],
+      'Date Range Data',
+      `merchant-${from}-to-${to}.xlsx`
+    );
+
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message
     });
   }
 });
